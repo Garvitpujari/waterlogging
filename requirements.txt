@@ -1,0 +1,4 @@
+streamlit
+inference-sdk[webrtc]
+opencv-python-headless
+numpy
