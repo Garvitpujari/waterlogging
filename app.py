@@ -2,8 +2,8 @@ import base64
 import random
 import subprocess
 import tempfile
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -32,7 +32,9 @@ st.set_page_config(
     layout="wide",
 )
 
+
 st.title("🌊 Waterlogging Detection")
+
 st.write(
     "Upload a video to detect waterlogged areas and download "
     "the processed video with bounding boxes."
@@ -160,7 +162,6 @@ WATERLOGGING_EVENTS = [
 # ============================================================
 
 def extract_first_output(response_json):
-    """Handle common Roboflow Workflow response wrappers."""
 
     if isinstance(response_json, list):
 
@@ -197,7 +198,6 @@ def extract_first_output(response_json):
 
 
 def decode_workflow_image(value):
-    """Decode Workflow output_image into a BGR frame."""
 
     if isinstance(value, dict):
 
@@ -217,9 +217,13 @@ def decode_workflow_image(value):
 
         value = value.split(",", 1)[1]
 
-    value += "=" * ((4 - len(value) % 4) % 4)
+    value += "=" * (
+        (4 - len(value) % 4) % 4
+    )
 
-    image_bytes = base64.b64decode(value)
+    image_bytes = base64.b64decode(
+        value
+    )
 
     image_array = np.frombuffer(
         image_bytes,
@@ -262,12 +266,18 @@ def get_predictions(value):
 # RUN ROBOFLOW WORKFLOW
 # ============================================================
 
-def run_workflow_on_frame(frame, api_key):
+def run_workflow_on_frame(
+    frame,
+    api_key
+):
 
     success, encoded = cv2.imencode(
         ".jpg",
         frame,
-        [cv2.IMWRITE_JPEG_QUALITY, 90],
+        [
+            cv2.IMWRITE_JPEG_QUALITY,
+            90
+        ],
     )
 
     if not success:
@@ -299,19 +309,20 @@ def run_workflow_on_frame(frame, api_key):
 
     if not response.ok:
 
-        message = response.text[:1000]
-
         raise RuntimeError(
             f"Roboflow request failed "
-            f"({response.status_code}): {message}"
+            f"({response.status_code}): "
+            f"{response.text[:1000]}"
         )
 
     output = extract_first_output(
         response.json()
     )
 
-    annotated_frame = decode_workflow_image(
-        output.get("output_image")
+    annotated_frame = (
+        decode_workflow_image(
+            output.get("output_image")
+        )
     )
 
     predictions = get_predictions(
@@ -322,23 +333,10 @@ def run_workflow_on_frame(frame, api_key):
 
 
 # ============================================================
-# BACKEND
+# SEND EVENT TO BACKEND
 # ============================================================
 
 def send_event_to_backend(event):
-
-    """
-    Send the event directly to the backend.
-
-    Backend expects:
-        POST /api/edge/events
-
-    Body:
-        event object directly
-
-    NOT:
-        {"event": event}
-    """
 
     response = requests.post(
         BACKEND_URL,
@@ -466,17 +464,25 @@ def process_video(
                 )
             )
 
-            detections = len(predictions)
+            detection_count = len(
+                predictions
+            )
 
-            total_detections += detections
+            total_detections += (
+                detection_count
+            )
 
             if writer is None:
 
-                height, width = annotated.shape[:2]
+                height, width = (
+                    annotated.shape[:2]
+                )
 
                 writer = cv2.VideoWriter(
                     str(rendered_path),
-                    cv2.VideoWriter_fourcc(*"mp4v"),
+                    cv2.VideoWriter_fourcc(
+                        *"mp4v"
+                    ),
                     fps,
                     (width, height),
                 )
@@ -487,7 +493,9 @@ def process_video(
                         "Could not create the output video."
                     )
 
-            writer.write(annotated)
+            writer.write(
+                annotated
+            )
 
             processed += 1
 
@@ -501,7 +509,8 @@ def process_video(
                 )
 
             status.write(
-                f"Processing frame {processed}"
+                f"Processing frame "
+                f"{processed}"
                 + (
                     f" of {total_frames}"
                     if total_frames > 0
@@ -525,7 +534,7 @@ def process_video(
         )
 
     status.write(
-        "Encoding the downloadable video…"
+        "Encoding the downloadable video..."
     )
 
     make_browser_video(
@@ -535,6 +544,7 @@ def process_video(
     )
 
     progress.progress(1.0)
+
     status.empty()
 
     return {
@@ -566,7 +576,9 @@ if uploaded_video is not None:
 
     st.subheader("Input video")
 
-    st.video(uploaded_video)
+    st.video(
+        uploaded_video
+    )
 
     if st.button(
         "Detect Waterlogging",
@@ -575,7 +587,7 @@ if uploaded_video is not None:
     ):
 
         # ----------------------------------------------------
-        # GET ROBOFLOW API KEY
+        # ROBOFLOW API KEY
         # ----------------------------------------------------
 
         api_key = st.secrets.get(
@@ -602,14 +614,18 @@ if uploaded_video is not None:
 
         with tempfile.TemporaryDirectory() as directory:
 
-            directory = Path(directory)
+            directory = Path(
+                directory
+            )
 
             input_path = (
-                directory / f"input{suffix}"
+                directory
+                / f"input{suffix}"
             )
 
             output_path = (
-                directory / "waterlogging_result.mp4"
+                directory
+                / "waterlogging_result.mp4"
             )
 
 
@@ -621,7 +637,7 @@ if uploaded_video is not None:
             try:
 
                 # =================================================
-                # RUN WATERLOGGING DETECTION
+                # PROCESS VIDEO
                 # =================================================
 
                 summary = process_video(
@@ -650,7 +666,7 @@ if uploaded_video is not None:
 
                     st.info(
                         "No waterlogging detected "
-                        "in the processed video."
+                        "in the uploaded video."
                     )
 
 
@@ -668,194 +684,236 @@ if uploaded_video is not None:
 
 
                 # =================================================
-                # RANDOM SAMPLE EVENT
-                # =================================================
-                #
-                # For the prototype, choose one of the predefined
-                # waterlogging events randomly.
-                #
-                # The selected object is exactly what is sent
-                # to the backend.
+                # GENERATE + SEND RANDOM EVENT
                 # =================================================
 
-                incident = random.choice(
-                    WATERLOGGING_EVENTS
-                )
+                if summary["detections"] > 0:
 
-
-                # Use current timestamp for the demo event
-                incident["timestamp"] = (
-                    datetime.now(
-                        timezone.utc
-                    )
-                    .isoformat()
-                    .replace("+00:00", "Z")
-                )
-
-
-                # =================================================
-                # DISPLAY EVENT
-                # =================================================
-
-                st.subheader(
-                    "📡 Detection Event"
-                )
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-
-                    st.metric(
-                        "Event Type",
-                        incident["eventType"]
-                    )
-
-                with col2:
-
-                    st.metric(
-                        "Confidence",
-                        f'{incident["detection"]["confidence"] * 100:.0f}%'
-                    )
-
-                with col3:
-
-                    st.metric(
-                        "Severity",
-                        incident["detection"]["severity"]
+                    # Pick one random sample event
+                    incident = random.choice(
+                        WATERLOGGING_EVENTS
                     )
 
 
-                # =================================================
-                # LOCATION
-                # =================================================
-
-                st.write(
-                    "### 📍 Location"
-                )
-
-                location = incident["location"]
-
-                st.write(
-                    f'**Address:** '
-                    f'{location["address"]}'
-                )
-
-                st.write(
-                    f'**Coordinates:** '
-                    f'{location["latitude"]}, '
-                    f'{location["longitude"]}'
-                )
-
-
-                # =================================================
-                # BUS / CAMERA
-                # =================================================
-
-                st.write(
-                    "### 🚌 Vehicle / Camera"
-                )
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-
-                    st.write(
-                        f'**Bus ID:** '
-                        f'{incident["busId"]}'
-                    )
-
-                with col2:
-
-                    st.write(
-                        f'**Camera:** '
-                        f'{incident["cameraId"]}'
-                    )
-
-
-                # =================================================
-                # MODEL INFO
-                # =================================================
-
-                st.write(
-                    "### 🤖 Model Information"
-                )
-
-                st.write(
-                    f'**Model:** '
-                    f'{incident["model"]["name"]}  \n'
-                    f'**Version:** '
-                    f'{incident["model"]["version"]}'
-                )
-
-
-                # =================================================
-                # SEND TO BACKEND
-                # =================================================
-
-                try:
-
-                    backend_response = (
-                        send_event_to_backend(
-                            incident
+                    # Generate current timestamp
+                    incident["timestamp"] = (
+                        datetime.now(
+                            timezone.utc
+                        )
+                        .isoformat()
+                        .replace(
+                            "+00:00",
+                            "Z"
                         )
                     )
 
-                    st.success(
-                        "✅ Detection event sent "
-                        "to backend successfully."
+
+                    # =================================================
+                    # DETECTION EVENT
+                    # =================================================
+
+                    st.subheader(
+                        "📡 Detection Event"
                     )
+
+
+                    col1, col2, col3 = (
+                        st.columns(3)
+                    )
+
+
+                    with col1:
+
+                        st.metric(
+                            "Event Type",
+                            incident[
+                                "eventType"
+                            ]
+                        )
+
+
+                    with col2:
+
+                        st.metric(
+                            "Confidence",
+                            (
+                                f'{incident["detection"]["confidence"] * 100:.0f}%'
+                            )
+                        )
+
+
+                    with col3:
+
+                        st.metric(
+                            "Severity",
+                            incident[
+                                "detection"
+                            ]["severity"]
+                        )
+
+
+                    # =================================================
+                    # LOCATION
+                    # =================================================
+
+                    st.write(
+                        "### 📍 Location"
+                    )
+
+                    location = (
+                        incident[
+                            "location"
+                        ]
+                    )
+
+                    st.write(
+                        f'**Address:** '
+                        f'{location["address"]}'
+                    )
+
+                    st.write(
+                        f'**Coordinates:** '
+                        f'{location["latitude"]}, '
+                        f'{location["longitude"]}'
+                    )
+
+
+                    # =================================================
+                    # BUS / CAMERA
+                    # =================================================
+
+                    st.write(
+                        "### 🚌 Vehicle / Camera"
+                    )
+
+                    col1, col2 = (
+                        st.columns(2)
+                    )
+
+
+                    with col1:
+
+                        st.write(
+                            f'**Bus ID:** '
+                            f'{incident["busId"]}'
+                        )
+
+
+                    with col2:
+
+                        st.write(
+                            f'**Camera:** '
+                            f'{incident["cameraId"]}'
+                        )
+
+
+                    # =================================================
+                    # MODEL
+                    # =================================================
+
+                    st.write(
+                        "### 🤖 Model Information"
+                    )
+
+                    st.write(
+                        f'**Model:** '
+                        f'{incident["model"]["name"]}  \n'
+                        f'**Version:** '
+                        f'{incident["model"]["version"]}'
+                    )
+
+
+                    # =================================================
+                    # SEND TO BACKEND
+                    # =================================================
+
+                    st.write(
+                        "### ☁️ Backend"
+                    )
+
 
                     try:
 
-                        backend_json = (
-                            backend_response.json()
+                        backend_response = (
+                            send_event_to_backend(
+                                incident
+                            )
                         )
 
-                        with st.expander(
-                            "View Backend Response"
-                        ):
 
-                            st.json(
-                                backend_json
+                        st.success(
+                            "✅ Event sent to backend successfully."
+                        )
+
+
+                        # -----------------------------------------
+                        # Backend response
+                        # -----------------------------------------
+
+                        try:
+
+                            response_json = (
+                                backend_response.json()
                             )
 
-                    except ValueError:
+                            with st.expander(
+                                "View Backend Response"
+                            ):
 
-                        pass
+                                st.json(
+                                    response_json
+                                )
 
+                        except ValueError:
 
-                except requests.Timeout:
-
-                    st.warning(
-                        "⚠️ Detection completed, "
-                        "but the backend request timed out."
-                    )
-
-
-                except Exception as error:
-
-                    st.warning(
-                        "⚠️ Detection completed, "
-                        "but the event could not be sent "
-                        "to the backend."
-                    )
-
-                    st.caption(
-                        f"Backend error: {error}"
-                    )
+                            pass
 
 
-                # =================================================
-                # EVENT JSON
-                # =================================================
+                    except requests.Timeout:
 
-                with st.expander(
-                    "View Event JSON"
-                ):
+                        st.warning(
+                            "⚠️ Detection succeeded, "
+                            "but backend request timed out."
+                        )
 
-                    st.json(
-                        incident
-                    )
+
+                    except requests.RequestException as error:
+
+                        st.warning(
+                            "⚠️ Detection succeeded, "
+                            "but event could not be sent "
+                            "to backend."
+                        )
+
+                        st.caption(
+                            f"Backend error: {error}"
+                        )
+
+
+                    except Exception as error:
+
+                        st.warning(
+                            "⚠️ Detection succeeded, "
+                            "but event could not be sent "
+                            "to backend."
+                        )
+
+                        st.caption(
+                            f"Backend error: {error}"
+                        )
+
+
+                    # =================================================
+                    # EVENT JSON
+                    # =================================================
+
+                    with st.expander(
+                        "View Event JSON"
+                    ):
+
+                        st.json(
+                            incident
+                        )
 
 
                 # =================================================
